@@ -14,9 +14,9 @@ fn makeBase(comptime BaseType: type) type {
     pub fn dynamicFunction(self: BaseType, argument: i32) void {
         // This is required because zig cannot create functions at compile time.
         // If it was possible, this boilerplate would be generated as well.
-        std.debug.print("PreDynamicCall {*} {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
+        std.debug.print("{*}, {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
         self.vtable.dynamicFunction(self.object, argument);
-        std.debug.print("PostDynamicCall {*} {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
+        std.debug.print("{*}, {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
     }
     // If the first argument is not BaseType, then it will still be forwarded, but a vtable entry will not be generated
     pub fn staticFunction(argument: i32) i32 {

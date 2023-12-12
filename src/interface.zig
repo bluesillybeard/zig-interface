@@ -5,7 +5,7 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
     const DummyInterface = struct {
         vtable: *anyopaque,
         object: *anyopaque,
-        // This is an unorthodox use of usingnamespace but it works
+        // This is a strange use of usingnamespace but it works
         pub usingnamespace makeTypeFn(@This());
     };
 
@@ -33,13 +33,8 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
                         // make sure the decl is a function with the right parameters
                         const declInfo = @typeInfo(@TypeOf(decl));
                         switch (declInfo) {
-                            .Fn => |f| {
-                                _ = f;
-                                //const expectedFn = makeVtableFn(Interface, Object, f);
-                                //if(!functionsEqual(expectedFn, f)) @compileError("TODO: put a useful error message here");
-                                // I GENUINELY have NO IDEA Why but assigning ptr SEPARATELY fixes a segmentation fault.
-                                // that makes NO SENSE AT ALL. My guess is the compilter makes a dumb optimization that breaks it,
-                                // but seperating it into an assignment then another assignment seems to fix it for some reason.
+                            .Fn => {
+                                // TODO: validate that the function signature matches
                                 const ptr = &@field(Object, field.name);
                                 @field(vtable, field.name) = @ptrCast(ptr);
                             },
