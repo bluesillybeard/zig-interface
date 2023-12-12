@@ -20,13 +20,13 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
         pub usingnamespace makeTypeFn(This);
 
         pub fn initFromImplementer(comptime Object: type, object: *Object) This{
-            //verifyInterface(Interface);
             const objectTypeInfo = @typeInfo(Object);
             switch (objectTypeInfo) {
                 .Struct => {        
                     // build the vtable
                     const vtableInfo = @typeInfo(Vtable);
-                    var vtable: Vtable = undefined;
+                    // Needs to be comptime so it is embedded into the output artifact instead of being on the stack.
+                    comptime var vtable: Vtable = undefined;
                     inline for(vtableInfo.Struct.fields) |field|{
                         if(!@hasDecl(Object, field.name)) @compileError("Object does not implement " ++ field.name);
                         const decl = @field(Object, field.name);
@@ -108,21 +108,6 @@ fn makeVtable(comptime T: type) type {
             });
         },
         else => @compileError("Expected a struct"),
-    }
-}
-
-fn verifyInterface(comptime Interface: type) void {
-    switch (@typeInfo(Interface)) {
-        .Struct => |s| {
-            // make sure it has vtable and object
-            if(std.mem.eql(u8, s.fields[0].name, "vtable")) @compileError("First field of interface must be \"vtable\", it was \"" ++ s.fields[0].name ++ "\" instead");
-            // vtable needs to be a struct
-            if(@typeInfo(s.fields[0].type) != .Struct)@compileError("vtable must be a struct of function pointers");
-            // TODO: verify every field is a function pointer
-            if(std.mem.eql(u8, s.fields[1].name, "object")) @compileError("First field of interface must be \"object\", it was \"" ++ s.fields[1].name ++ "\" instead");
-            if(s.fields[1].type != *anyopaque) @compileError("object must be *anyopaque");
-        },
-        else => @compileError("Interface must be a struct"),
     }
 }
 

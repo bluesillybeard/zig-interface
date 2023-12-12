@@ -1,5 +1,5 @@
-
 const std = @import("std");
+const testing = std.testing;
 const interface = @import("interface.zig");
 
 // First, you need a function that returns a type
@@ -14,9 +14,7 @@ fn makeBase(comptime BaseType: type) type {
     pub fn dynamicFunction(self: BaseType, argument: i32) void {
         // This is required because zig cannot create functions at compile time.
         // If it was possible, this boilerplate would be generated as well.
-        std.debug.print("{*}, {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
         self.vtable.dynamicFunction(self.object, argument);
-        std.debug.print("{*}, {*}\n", .{&Sub.dynamicFunction, self.vtable.dynamicFunction});
     }
     // If the first argument is not BaseType, then it will still be forwarded, but a vtable entry will not be generated
     pub fn staticFunction(argument: i32) i32 {
@@ -48,10 +46,6 @@ pub const Sub = struct {
 };
 
 test "basic interface" {
-    test1();
-}
-
-fn test1() void {
     // create an instace of the implementer
     var object = Sub{
         .value = 0,
@@ -60,6 +54,8 @@ fn test1() void {
     // call the function directly - does not go through any indirection (for calling the function itself)
     object.dynamicFunction(100);
 
+    try testing.expectEqual(@as(i32, 100), object.value);
+
     // initFromImplementer will create the implementation given an object that is an implementer,
     // generating its vtable and stuff at compile time.
     // Note that if object's lifetime ends before the baseObject, then very bad things are likely to happen.
@@ -67,17 +63,23 @@ fn test1() void {
 
     // This goes through two layers of indirection - object.vtable -> function -> (call the function)
     baseObject.dynamicFunction(50);
+    // because baseObject holds a reference to Object, it changes the original's value
+    try testing.expectEqual(@as(i32, 150), object.value);
 
-    
-    // You can also (if you're an insane masochist):
+    // If you're feeling naughty, you can also do this:
     baseObject.vtable.dynamicFunction(baseObject.object, 20);
+    try testing.expectEqual(@as(i32, 170), object.value);
     
     // Don't forget the static functions!
-    // baseObject.static_instanceFunction(Base.staticFunction(20));
+    const int = Base.staticFunction(20);
+    baseObject.static_instanceFunction(int);
+    try testing.expectEqual(@as(i32, 611), object.value);
 
     // You can also cast it back to the sub type - but beware: no type checking is done,
     // so if you cast it to the wrong type there is no way to know until memory corruption or a segmentation fault occurs.
     var subFromBase: *Sub = @alignCast(@ptrCast(baseObject.object));
     subFromBase.dynamicFunction(29);
-    (&object.value).* = 0;
+    try testing.expectEqual(@as(i32, 640), object.value);
+    object.value = 0;
+    try testing.expectEqual(@as(i32, 0), object.value);
 }
