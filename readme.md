@@ -10,7 +10,7 @@ There are a number of ways to do it, but here is one way that works similarly to
 You need a vtable
 ```Zig
 pub const Vtable = struct {
-    dynamicFunction: *const fn(self: *Base argument: i32) void,
+    dynamicFunction: *const fn(self: *Base, argument: i32) void,
 }
 ```
 
@@ -48,7 +48,7 @@ This works, but it's a bit tedious. You can already probably see why, but here i
 ```Zig
 // boilerplate
 pub const Vtable = struct {
-    dynamicFunction: *const fn(self: *Base argument: i32) void,
+    dynamicFunction: *const fn(self: *Base, argument: i32) void,
 }
 
 pub const Base = struct {
