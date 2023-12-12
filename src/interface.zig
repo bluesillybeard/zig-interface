@@ -1,5 +1,4 @@
 const std = @import("std");
-const testing = std.testing;
 
 pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
     // First, make a dummy type so we can get the declarations
@@ -7,56 +6,57 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
         vtable: *anyopaque,
         object: *anyopaque,
         // This is an unorthodox use of usingnamespace but it works
-        usingnamespace makeTypeFn(@This());
+        pub usingnamespace makeTypeFn(@This());
     };
 
-    const Vtable = makeVtableType(DummyInterface);
+    const Vtable = makeVtable(DummyInterface);
 
     // build the interface struct
-    const Interface = struct {
+    return struct {
         vtable: *Vtable,
         object: *anyopaque,
 
-        usingnamespace makeTypeFn(@This());
-    };
+        const This = @This();
+        pub usingnamespace makeTypeFn(This);
 
-    return Interface;
-}
+        pub fn initFromImplementer(comptime Object: type, object: *Object) This{
+            //verifyInterface(Interface);
+            const objectTypeInfo = @typeInfo(Object);
+            switch (objectTypeInfo) {
+                .Struct => {        
+                    // build the vtable
+                    const vtableInfo = @typeInfo(Vtable);
+                    var vtable: Vtable = undefined;
+                    inline for(vtableInfo.Struct.fields) |field|{
+                        if(!@hasDecl(Object, field.name)) @compileError("Object does not implement " ++ field.name);
+                        const decl = @field(Object, field.name);
+                        // make sure the decl is a function with the right parameters
+                        const declInfo = @typeInfo(@TypeOf(decl));
+                        switch (declInfo) {
+                            .Fn => |f| {
+                                _ = f;
+                                //const expectedFn = makeVtableFn(Interface, Object, f);
+                                //if(!functionsEqual(expectedFn, f)) @compileError("TODO: put a useful error message here");
+                                // I GENUINELY have NO IDEA Why but assigning ptr SEPARATELY fixes a segmentation fault.
+                                // that makes NO SENSE AT ALL. My guess is the compilter makes a dumb optimization that breaks it,
+                                // but seperating it into an assignment then another assignment seems to fix it for some reason.
+                                const ptr = &@field(Object, field.name);
+                                @field(vtable, field.name) = @ptrCast(ptr);
+                            },
+                            else => {@compileError("Implementation of " ++ field.name ++ " Must be a function");},
+                        }
+                    }
 
-pub fn initFromImplementer(comptime Interface: type, comptime Object: type, object: *Object) Interface{
-    //verifyInterface(Interface);
-    const objectTypeInfo = @typeInfo(Object);
-    switch (objectTypeInfo) {
-        .Struct => {        
-            // build the vtable
-            const dummyInterfaceInstance: Interface = undefined;
-            const Vtable = @typeInfo(@TypeOf(dummyInterfaceInstance.vtable)).Pointer.child;
-            const vtableInfo = @typeInfo(Vtable);
-            var vtable: Vtable = undefined;
-            inline for(vtableInfo.Struct.fields) |field|{
-                if(!@hasDecl(Object, field.name)) @compileError("Object does not implement " ++ field.name);
-                const decl = @field(Object, field.name);
-                // make sure the decl is a function with the right parameters
-                const declInfo = @typeInfo(@TypeOf(decl));
-                switch (declInfo) {
-                    .Fn => |f| {
-                        const expectedFn = makeVtableFn(Interface, Object, f);
-                        _ = expectedFn;
-                        //if(!functionsEqual(expectedFn, f)) @compileError("TODO: put a useful error message here");
-                        @field(vtable, field.name) = @ptrCast(&@field(Object, field.name));
-                    },
-                    else => {@compileError("Implementation of " ++ field.name ++ " Must be a function");},
-                }
+                    return .{
+                        .object = object,
+                        .vtable = &vtable,
+                    };
+
+                },
+                else => {@compileError("Object must be a struct");}
             }
-
-            return .{
-                .object = object,
-                .vtable = &vtable,
-            };
-
-        },
-        else => {@compileError("Object must be a struct");}
-    }
+        }
+    };
 }
 
 fn functionsEqual(comptime a: std.builtin.Type.Fn, comptime b: std.builtin.Type.Fn) bool {
@@ -68,31 +68,39 @@ fn functionsEqual(comptime a: std.builtin.Type.Fn, comptime b: std.builtin.Type.
 }
 
 /// Takes the base type and returns the vtable type
-fn makeVtableType(comptime T: type) type {
+fn makeVtable(comptime T: type) type {
     switch (@typeInfo(T)) {
         .Struct => |dummyInfo|{
             var vtableFields: []const std.builtin.Type.StructField = &[_]std.builtin.Type.StructField{};
             inline for(dummyInfo.decls) |decl| {
                 const name = decl.name;
-                // mildly annoys me that @field is used for both fields and declarations
-                const actualDecl = @field(T, name);
-                const DeclType = @TypeOf(actualDecl);
-                switch (@typeInfo(DeclType)) {
-                    .Fn => |f|{
-                        const VtableFieldType = @Type(std.builtin.Type{
-                            .Fn = makeVtableFn(T, *anyopaque, f),
-                        });
-                        const vtableField = std.builtin.Type.StructField{
-                            .alignment = @alignOf(VtableFieldType),
-                            .default_value = null,
-                            .is_comptime = false,
-                            .name = name,
-                            .type = *VtableFieldType,
-                        };
-                        vtableFields = vtableFields ++ &[_]std.builtin.Type.StructField{vtableField};
-                    },
-                    // non-function declarations are allowed
-                    else => {},
+                // skip functions prefixed with static_
+                // TODO: change when zig adds a way to differentiate without a prefix
+                const isStaticInstanceFunction = comptime std.mem.startsWith(u8, name, "static_");
+                if(!isStaticInstanceFunction){
+                    // mildly annoys me that @field is used for both fields and declarations
+                    const actualDecl = @field(T, name);
+                    const DeclType = @TypeOf(actualDecl);
+                    switch (@typeInfo(DeclType)) {
+                        .Fn => |f|{
+                            // skip non-instance functions
+                            if(f.params[0].type == T){
+                                const VtableFieldType = @Type(std.builtin.Type{
+                                    .Fn = makeVtableFn(T, *anyopaque, f),
+                                });
+                                const vtableField = std.builtin.Type.StructField{
+                                    .alignment = @alignOf(VtableFieldType),
+                                    .default_value = null,
+                                    .is_comptime = false,
+                                    .name = name,
+                                    .type = *const VtableFieldType,
+                                };
+                                vtableFields = vtableFields ++ &[_]std.builtin.Type.StructField{vtableField};
+                            }
+                        },
+                        // non-function declarations are allowed - they are just skipped
+                        else => {},
+                    }
                 }
             }
             return @Type(std.builtin.Type{
@@ -156,72 +164,4 @@ fn makeVtableFn(comptime Interface: type, comptime Object: type, comptime f: std
         .return_type = interfaceTypeToImplementerType(Interface, Object, f.return_type),
 
     };
-}
-
-
-test "extremely basic interface" {
-    const Basic = struct {
-        // First, you need a function that returns a type
-        // VtableType is simply to give more useful info - it will rarely be needed
-        fn makeBase(comptime BaseType: type) type {
-            // Note that this function is actually called twice.
-            // Once with with a dummy type (it's almost the same as the real one, but vtable is *anyopaque instead of the real vtable)
-            // to be able to get the declarations, and again with the real types.
-            // So, if you are doing any complex logic with BaseType, keep that in mind,
-            return struct{
-                // If the first argument is a BaseType, then it is an instance function and a vtable entry will be generated
-                // Note: It might be worth inlining this function, inline is not required because there are good reasons not to do it.
-                pub fn dynamicFunction(self: BaseType, argument: i32) void {
-                    // This is required because zig cannot create functions at compile time.
-                    // If it was possible, this boilerplate would be generated as well.
-                    self.vtable.dynamicFunction(self.object, argument);
-                }
-            };
-        }
-
-        const Vtable = struct {
-            dynamicFunction: *const fn(*anyopaque, i32) void,
-        };
-        // makeInterface creates an interface type that can be used to create implementations
-        pub const Base = struct {
-            vtable: *Vtable,
-            object: *anyopaque,
-
-            pub fn dynamicFunction(self: Base, argument: i32) void {
-                self.vtable.dynamicFunction(self.object, argument);
-            }
-        };
-        //makeInterface(makeBase);
-
-        // You don't actually need to do anything with the sub type - as long as it has all the required functions.
-        pub const Sub = struct {
-            value: i32,
-
-            // The call convention of this function must match that of the base one, 
-            // With the exception of when the base function is inline; in that case the call convention must be default,
-            // since getting the pointer of an inline function is not allowed.
-            pub fn dynamicFunction(self: *Sub, argument: i32) void {
-                self.value += argument;
-            }
-        };
-    };
-    
-    // create an instace of the implementer
-    var object = Basic.Sub{
-        .value = 0,
-    };
-    
-    // call the function directly - does not go through any indirection (for calling the function itself)
-    object.dynamicFunction(100);
-    try testing.expectEqual(@as(i32, 100), object.value);
-    // initFromImplementer will create the implementation given an object that is an implementer,
-    // generating its vtable and stuff at compile time.
-    // Note that if object's lifetime ends before the baseObject, then very bad things are likely to happen.
-    var baseObject = initFromImplementer(Basic.Base, Basic.Sub, &object);
-    
-    // This goes through two layers of indirection - object.vtable -> function -> (call the function)
-    baseObject.dynamicFunction(50);
-
-    // It should have modified the original object
-    try testing.expectEqual(@as(i32, 150), object.value);
 }

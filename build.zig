@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(lib);
 
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/interface.zig" },
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });

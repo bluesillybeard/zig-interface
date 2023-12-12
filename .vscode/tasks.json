@@ -1,0 +1,10 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "buildtests",
+            "type": "shell",
+            "command": "mkdir zig-out/bin & zig test -femit-bin=zig-out/bin/testrunner --test-no-exec src/tests.zig"
+        }
+    ]
+}
