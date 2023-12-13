@@ -109,6 +109,8 @@ It is currently tested and developed with zig 0.12.0-dev.1819+5c1428ea9
 ## Planned features
 - fields instead of just functions
 - optional functions, with a default implementation that can be overriden
+- static instance function (a function that is part of the vtable but does not resieve an instance of the object it was called from)
+    - this may sound pointless, but one of my actual real-use-case projects would make use of this.
 - More types of dynamic dispatch
     - [DONE-ish] Wide pointer / Rust style (the only option at the moment)
     - C++ style
