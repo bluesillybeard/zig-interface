@@ -33,10 +33,13 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
                         // make sure the decl is a function with the right parameters
                         const declInfo = @typeInfo(@TypeOf(decl));
                         switch (declInfo) {
-                            .Fn => {
-                                // TODO: validate that the function signature matches
-                                const ptr = &@field(Object, field.name);
-                                @field(vtable, field.name) = @ptrCast(ptr);
+                            .Fn => |implFn| {
+                                const vtableFn = @typeInfo(@typeInfo(field.type).Pointer.child).Fn;
+                                const valid = comptime implementationFunctionValid(vtableFn, implFn);
+                                if(!valid) {
+                                    @compileError("Function signatures for " ++ field.name ++ " are incompatible!");
+                                }
+                                @field(vtable, field.name) = @ptrCast(&decl);
                             },
                             else => {@compileError("Implementation of " ++ field.name ++ " Must be a function");},
                         }
@@ -54,11 +57,29 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type) type {
     };
 }
 
-fn functionsEqual(comptime a: std.builtin.Type.Fn, comptime b: std.builtin.Type.Fn) bool {
-    _ = a;
-    _ = b;
+// TODO: instead of returning a boolean, return a useful message if they aren't compatible
+fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime implementerFn: std.builtin.Type.Fn) bool {
+    // A's allignment must be <= to B's, because otherwise B might be placed at an offset that is uncallable from A.
+    if(vtableFn.alignment > implementerFn.alignment) return false;
+    if(vtableFn.calling_convention != implementerFn.calling_convention) return false;
+    if(vtableFn.is_generic != implementerFn.is_generic) return false;
+    if(vtableFn.is_var_args != implementerFn.is_var_args) return false;
+    // TODO if A returns anyopaque, let B return any pointer
+    if(vtableFn.return_type != implementerFn.return_type) return false;
+    if(vtableFn.params.len != implementerFn.params.len) return false;
+    // For each parameter
+    inline for(vtableFn.params, 0..) |parameter_a, index| {
+        const parameter_b = implementerFn.params[index];
+        if(parameter_a.is_generic != parameter_b.is_generic) return false;
+        if(parameter_a.is_noalias != parameter_b.is_noalias) return false;
+        if(parameter_a.type == *anyopaque) {
+            if(parameter_b.type == null) return false;
+            const parameter_b_info = @typeInfo(parameter_b.type.?);
+            if(parameter_b_info != .Pointer) return false;
+        } else if (parameter_a.type != parameter_b.type) return false;
+    }
 
-    // TODO
+    // If all the above checks succeed, then return true.
     return true;
 }
 
@@ -124,7 +145,7 @@ fn makeVtableFn(comptime Interface: type, comptime Object: type, comptime f: std
     return std.builtin.Type.Fn {
         .alignment = f.alignment,
         .calling_convention = switch (f.calling_convention) {
-            .Inline => .default,
+            .Inline => .Unspecified,
             else => f.calling_convention,
         },
         .is_generic = f.is_generic,

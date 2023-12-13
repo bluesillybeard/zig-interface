@@ -10,8 +10,8 @@ fn makeBase(comptime BaseType: type) type {
     return struct{
     
     // If the first argument is a BaseType, then it is an instance function and a vtable entry will be generated
-    // Note: It might be worth inlining this function, inline is not required because there are good reasons not to do it.
-    pub fn dynamicFunction(self: BaseType, argument: i32) void {
+    // The function is inline because that reduces calling overhead.
+    pub inline fn dynamicFunction(self: BaseType, argument: i32) void {
         // This is required because zig cannot create functions at compile time.
         // If it was possible, this boilerplate would be generated as well.
         self.vtable.dynamicFunction(self.object, argument);
@@ -28,6 +28,11 @@ fn makeBase(comptime BaseType: type) type {
         // You can then call a dynamic function
         self.dynamicFunction(argument * argument);
     }
+
+    pub inline fn otherDynamicFunction(self: BaseType) void {
+        self.dynamicFunction(10);
+        self.vtable.otherDynamicFunction(self.object);
+    }
 };
 }
 // makeInterface creates an interface type that can be used to create implementations
@@ -42,6 +47,10 @@ pub const Sub = struct {
     // since getting the pointer of an inline function is not allowed.
     pub fn dynamicFunction(self: *Sub, argument: i32) void {
         self.value += argument;
+    }
+
+    pub fn otherDynamicFunction(self: *Sub) void {
+        _ = self;
     }
 };
 
