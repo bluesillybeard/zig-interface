@@ -5,6 +5,8 @@ pub const InterfaceOptions = struct {
     allow_bitwise_compatibility: bool = false,
 };
 
+//fn initStructInterface(comptime Object: type, object: *Object, Vtable: *)
+
 pub fn MakeInterface(comptime makeTypeFn: fn (type) type, comptime options: InterfaceOptions) type {
     // First, make a dummy type so we can get the declarations
     const DummyInterface = struct {
@@ -26,41 +28,41 @@ pub fn MakeInterface(comptime makeTypeFn: fn (type) type, comptime options: Inte
 
         pub fn initFromImplementer(comptime Object: type, object: *Object) This {
             const objectTypeInfo = @typeInfo(Object);
-            switch (objectTypeInfo) {
-                .Struct => {
-                    // build the vtable
-                    const vtableInfo = @typeInfo(Vtable);
-                    // Needs to be comptime so it is embedded into the output artifact instead of being on the stack.
-                    comptime var vtable: Vtable = undefined;
-                    inline for (vtableInfo.Struct.fields) |field| {
-                        if (!@hasDecl(Object, field.name)) @compileError("Object does not implement " ++ field.name);
-                        const decl = @field(Object, field.name);
-                        // make sure the decl is a function with the right parameters
-                        const declInfo = @typeInfo(@TypeOf(decl));
-                        switch (declInfo) {
-                            .Fn => |implFn| {
-                                const vtableFn = @typeInfo(@typeInfo(field.type).Pointer.child).Fn;
-                                const valid = comptime implementationFunctionValid(vtableFn, implFn, options);
-                                if (!valid) {
-                                    @compileError("Function signatures for " ++ field.name ++ " are incompatible!");
-                                }
-                                @field(vtable, field.name) = @ptrCast(&decl);
-                            },
-                            else => {
-                                @compileError("Implementation of " ++ field.name ++ " Must be a function");
-                            },
-                        }
-                    }
 
-                    return .{
-                        .object = object,
-                        .vtable = &vtable,
-                    };
-                },
-                else => {
-                    @compileError("Object must be a struct");
-                },
+            if (objectTypeInfo != .Struct) {
+                @compileError("Object must be a struct");
             }
+
+            // build the vtable
+            const vtableInfo = @typeInfo(Vtable);
+            // Needs to be comptime so it is embedded into the output artifact instead of being on the stack.
+            comptime var vtable: Vtable = undefined;
+
+            inline for (vtableInfo.Struct.fields) |field| {
+                if (!@hasDecl(Object, field.name)) @compileError("Object does not implement " ++ field.name);
+                const decl = @field(Object, field.name);
+                // make sure the decl is a function with the right parameters
+                const declInfo = @typeInfo(@TypeOf(decl));
+
+                switch (declInfo) {
+                    .Fn => |implFn| {
+                        const vtableFn = @typeInfo(@typeInfo(field.type).Pointer.child).Fn;
+                        const valid = comptime implementationFunctionValid(vtableFn, implFn, options);
+                        if (!valid) {
+                            @compileError("Function signatures for " ++ field.name ++ " are incompatible!");
+                        }
+                        @field(vtable, field.name) = @ptrCast(&decl);
+                    },
+                    else => {
+                        @compileError("Implementation of " ++ field.name ++ " Must be a function");
+                    },
+                }
+            }
+
+            return .{
+                .object = object,
+                .vtable = &vtable,
+            };
         }
     };
 }
