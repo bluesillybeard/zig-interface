@@ -4,20 +4,19 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "zig-interface",
-        .root_source_file = .{ .path = "src/interface.zig" },
-        .target = target,
-        .optimize = optimize,
-    });
+    // zig-interface is intended to be used as a module like this
 
-    b.installArtifact(lib);
+    const interface = b.addModule("interface", .{
+        .source_file = .{.path = "src/interface.zig"}
+    });
 
     const lib_unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
+
+    lib_unit_tests.addModule("interface", interface);
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
 
