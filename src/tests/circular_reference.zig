@@ -6,7 +6,7 @@ const interface = @import("interface");
 // However, there is a way around it.
 
 // This is the interface
-fn mI(comptime B: type) type {
+fn MI(comptime B: type) type {
     return struct {
         // FakeZ is the same as Z, but it doesn't reference the interface
         pub fn iz(self: B, z: FakeZ) i32 {
@@ -17,7 +17,7 @@ fn mI(comptime B: type) type {
 
 // Make the interface, HOWEVER if the implementer's functions aren't equal,
 // if they are instead bitwise compatible (TODO: explain rules in more detail) then it's allowed.
-const I = interface.makeInterface(mI, .{.allow_bitwise_compatibility = true});
+const I = interface.MakeInterface(MI, .{ .allow_bitwise_compatibility = true });
 
 const Impl = struct {
     pub fn iz(self: *Impl, z: Z) i32 {
@@ -51,7 +51,7 @@ const FakeZ = extern struct {
 test "circular reference" {
     var a = Impl{};
     var i = I.initFromImplementer(Impl, &a);
-    var z = Z{.int = 5, .i = &i};
+    var z = Z{ .int = 5, .i = &i };
     try testing.expectEqual(@as(i32, 5), z.izo());
     try testing.expectEqual(@as(i32, 10), z.int);
 }
