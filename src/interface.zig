@@ -16,7 +16,7 @@ pub fn MakeInterface(comptime makeTypeFn: fn (type) type, comptime options: Inte
         pub usingnamespace makeTypeFn(@This());
     };
 
-    const Vtable = makeVtable(DummyInterface);
+    const Vtable = MakeVTable(DummyInterface);
 
     // build the interface struct
     return struct {
@@ -152,7 +152,7 @@ fn areTypesBitCompatible(comptime vt: type, comptime impl: type) bool {
 }
 
 /// Takes the base type and returns the vtable type
-fn makeVtable(comptime T: type) type {
+fn MakeVTable(comptime T: type) type {
     switch (@typeInfo(T)) {
         .Struct => |dummyInfo| {
             var vtableFields: []const std.builtin.Type.StructField = &[_]std.builtin.Type.StructField{};
@@ -170,7 +170,7 @@ fn makeVtable(comptime T: type) type {
                             // skip non-instance functions
                             if (f.params[0].type == T) {
                                 const VtableFieldType = @Type(std.builtin.Type{
-                                    .Fn = makeVtableFn(T, *anyopaque, f),
+                                    .Fn = makeVTableFn(T, *anyopaque, f),
                                 });
                                 const vtableField = std.builtin.Type.StructField{
                                     .alignment = @alignOf(VtableFieldType),
@@ -202,7 +202,11 @@ fn interfaceTypeToImplementerType(comptime Interface: type, comptime Object: typ
 }
 
 /// Turns a function info from the interface into a function for the vtable or implementer
-fn makeVtableFn(comptime Interface: type, comptime Object: type, comptime f: std.builtin.Type.Fn) std.builtin.Type.Fn {
+fn makeVTableFn(
+    comptime Interface: type,
+    comptime Object: type,
+    comptime f: std.builtin.Type.Fn,
+) std.builtin.Type.Fn {
     return std.builtin.Type.Fn{
         .alignment = f.alignment,
         .calling_convention = switch (f.calling_convention) {
