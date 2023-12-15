@@ -92,7 +92,7 @@ pub const Sub = struct {
 
 ## Ok so, how can we get closer to that?
 
-On potential way would be to simply generate the vtable in comptime, however due to the circular dependency between the vtable and the interface, the compiler will make that very dificult without heavy use of anyopaque and casting.
+On potential way would be to simply generate the vtable in comptime, however due to the circular dependency between the vtable and the interface, the compiler will make that very difficult without heavy use of anyopaque and casting.
 
 https://github.com/alexnask/interface.zig presents an option, however it tries to do a lot with a single API, which is not ideal. It also hasn't been updated in quite a while, which leaves me to think it was abandoned. It also still requires some boilerplate.
 
@@ -115,12 +115,12 @@ It is currently tested and developed with zig 0.12.0-dev.1819+5c1428ea9
     - [DONE-ish] Wide pointer / Rust style (the only option at the moment)
     - C++ style
     - struct of function pointers / C style
-- integration with Zig package managers (I won't add this myself as I always use a git submodule, feel free to make a poll request.)
+- integration with Zig package managers (I won't add this myself as I always use a git submodule, feel free to make a pull request.)
 - proper documentation system using a github wiki
 - CI/CD
 
 ## Contributing
 
-I am a fairly busy person who values their time, so I won't develop this library much more than I need for my own projects. I will accept poll requests though, so they are very highly appreciated.
+I am a fairly busy person who values their time, so I won't develop this library much more than I need for my own projects. I will accept pull requests though, so they are very highly appreciated.
 
 Try to keep it one bugfix / feature per PR, and if you're adding new features please save me some work and document the new functions / types.
