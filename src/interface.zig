@@ -65,16 +65,32 @@ pub fn makeInterface(comptime makeTypeFn: fn(type)type, comptime options: Interf
 // TODO: instead of returning a boolean, return a useful message if they aren't compatible
 fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime implementerFn: std.builtin.Type.Fn, options: InterfaceOptions) bool {
     // A's allignment must be <= to B's, because otherwise B might be placed at an offset that is uncallable from A.
-    if(
-           vtableFn.alignment > implementerFn.alignment
-        or vtableFn.calling_convention != implementerFn.calling_convention
-        or vtableFn.is_generic != implementerFn.is_generic
-        or vtableFn.is_var_args != implementerFn.is_var_args
-        or vtableFn.params.len != implementerFn.params.len) return false;
+    if(vtableFn.alignment > implementerFn.alignment) {
+        @compileLog("Allignment doesn't match");
+        return false;
+    }
+    if(vtableFn.calling_convention != implementerFn.calling_convention) {
+        @compileLog("Calling convention doesn't match");
+        return false;
+    }
+    if(vtableFn.is_generic != implementerFn.is_generic) {
+        return false;
+    }
+    if(vtableFn.is_var_args != implementerFn.is_var_args) {
+        @compileLog("One is var args, the other isn't");
+        return false;
+    }
+    if(vtableFn.params.len != implementerFn.params.len){
+        @compileLog("Wrong number of parameters");
+        return false;
+    }
 
     // TODO if A returns anyopaque, let B return any pointer
     // TODO: options.allow_bitwise_compatibility
-    if(vtableFn.return_type != implementerFn.return_type) return false;
+    if(vtableFn.return_type != implementerFn.return_type){
+        @compileLog("Wrong return type");
+        return false;
+    }
     // For each parameter
     inline for(vtableFn.params, 0..) |parameter_vt, index| {
         const parameter_impl = implementerFn.params[index];
@@ -83,7 +99,10 @@ fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime 
         if(parameter_vt.type == *anyopaque) {
             if(parameter_impl.type == null) return false;
             const parameter_b_info = @typeInfo(parameter_impl.type.?);
-            if(parameter_b_info != .Pointer) return false;
+            if(parameter_b_info != .Pointer) {
+                @compileLog(std.fmt.comptimePrint("Parameter {} isn't a pointer", .{index}));
+                return false;
+            }
         } else {
             if(options.allow_bitwise_compatibility ){
                 return areTypesBitCompatible(parameter_vt.type.?, parameter_impl.type.?);
@@ -98,6 +117,7 @@ fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime 
 
 /// returns true if two types are allowed to be directly cast when the allow_bitwise_compatibility option is set.
 fn areTypesBitCompatible(comptime vt: type, comptime impl: type) bool {
+    if(vt == impl) return true;
     // TODO: non-structs
     switch (@typeInfo(vt)) {
         .Struct => |svt|{
@@ -107,7 +127,10 @@ fn areTypesBitCompatible(comptime vt: type, comptime impl: type) bool {
                 // - they are both extern or both packed
                 // - they are the same size
                 // TODO: change those terms to also include the fields of the structs
-                if(svt.layout == .Auto or simpl.layout == .Auto) return false;
+                if(svt.layout == .Auto or simpl.layout == .Auto){
+                    @compileLog("Layout isn't extern or packed.");
+                    return false;
+                }
                 return if(svt.layout != simpl.layout) false else @sizeOf(vt) == @sizeOf(impl);
 
             } else return false;
