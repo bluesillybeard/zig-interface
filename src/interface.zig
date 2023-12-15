@@ -47,10 +47,10 @@ pub fn MakeInterface(comptime makeTypeFn: fn (type) type, comptime options: Inte
                 switch (declInfo) {
                     .Fn => |implFn| {
                         const vtableFn = @typeInfo(@typeInfo(field.type).Pointer.child).Fn;
-                        const valid = comptime implementationFunctionValid(vtableFn, implFn, options);
-                        if (!valid) {
+                        comptime implementationFunctionValid(vtableFn, implFn, options) catch |err| {
+                            @compileLog(err);
                             @compileError("Function signatures for " ++ field.name ++ " are incompatible!");
-                        }
+                        };
                         @field(vtable, field.name) = @ptrCast(&decl);
                     },
                     else => {
@@ -68,33 +68,35 @@ pub fn MakeInterface(comptime makeTypeFn: fn (type) type, comptime options: Inte
 }
 
 // TODO: instead of returning a boolean, return a useful message if they aren't compatible
-fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime implementerFn: std.builtin.Type.Fn, options: InterfaceOptions) bool {
+// Note: I've fixed this todo by making the function return a descriptive error
+fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime implementerFn: std.builtin.Type.Fn, options: InterfaceOptions) !void {
     // A's allignment must be <= to B's, because otherwise B might be placed at an offset that is uncallable from A.
     if (vtableFn.alignment > implementerFn.alignment) {
         @compileLog("Allignment doesn't match");
-        return false;
+        return error.alignment_doesnt_match;
     }
     if (vtableFn.calling_convention != implementerFn.calling_convention) {
         @compileLog("Calling convention doesn't match");
-        return false;
+        return error.calling_conv_doesnt_match;
     }
     if (vtableFn.is_generic != implementerFn.is_generic) {
-        return false;
+        @compileLog("The vtableFn and the implementerFn must both be generic or neither be generic");
+        return error.generic_status_doesnt_match;
     }
     if (vtableFn.is_var_args != implementerFn.is_var_args) {
         @compileLog("One is var args, the other isn't");
-        return false;
+        return error.var_args_doesnt_match;
     }
     if (vtableFn.params.len != implementerFn.params.len) {
         @compileLog("Wrong number of parameters");
-        return false;
+        return error.wrong_number_of_parameters;
     }
 
     // TODO if A returns anyopaque, let B return any pointer
     // TODO: options.allow_bitwise_compatibility
     if (vtableFn.return_type != implementerFn.return_type) {
         @compileLog("Wrong return type");
-        return false;
+        return error.wrong_return_type;
     }
     // For each parameter
     inline for (vtableFn.params, 0..) |parameter_vt, index| {
@@ -102,21 +104,28 @@ fn implementationFunctionValid(comptime vtableFn: std.builtin.Type.Fn, comptime 
         if (parameter_vt.is_generic != parameter_impl.is_generic) return false;
         if (parameter_vt.is_noalias != parameter_impl.is_noalias) return false;
         if (parameter_vt.type == *anyopaque) {
-            if (parameter_impl.type == null) return false;
+            if (parameter_impl.type == null) {
+                return error.parameter_impl_type_is_null;
+            }
             const parameter_b_info = @typeInfo(parameter_impl.type.?);
             if (parameter_b_info != .Pointer) {
                 @compileLog(std.fmt.comptimePrint("Parameter {} isn't a pointer", .{index}));
-                return false;
+                return error.parameter_isnt_pointer;
             }
         } else {
             if (options.allow_bitwise_compatibility) {
-                return areTypesBitCompatible(parameter_vt.type.?, parameter_impl.type.?);
-            } else if (parameter_vt.type != parameter_impl.type) return false;
+                const is_bit_compatible = areTypesBitCompatible(parameter_vt.type.?, parameter_impl.type.?);
+                if (!is_bit_compatible) {
+                    return error.types_are_not_bit_compatible;
+                }
+            } else if (parameter_vt.type != parameter_impl.type) {
+                return error.parameter_type_doesnt_match;
+            }
         }
     }
 
     // If all the above checks succeed, then return true.
-    return true;
+    //return true;
 }
 
 /// returns true if two types are allowed to be directly cast when the allow_bitwise_compatibility option is set.
