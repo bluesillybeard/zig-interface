@@ -201,6 +201,18 @@ fn interfaceTypeToImplementerType(comptime Interface: type, comptime Object: typ
     return T;
 }
 
+//checks if an interface function has a valid return type
+fn isValidReturnType(comptime MaybeT: ?type) !void {
+    if (MaybeT) |T| {
+        switch (@typeInfo(T)) {
+            //TODO figure out a way to check if the error union is inferred or not
+            //I don't think zig currently has a way to determine this, so at the moment all error sets are disallowed
+            .ErrorUnion => return error.error_return_type_not_allowed,
+            else => return,
+        }
+    }
+}
+
 /// Turns a function info from the interface into a function for the vtable or implementer
 fn makeVTableFn(
     comptime Interface: type,
@@ -227,6 +239,12 @@ fn makeVTableFn(
             }
             break :Blk params;
         },
-        .return_type = interfaceTypeToImplementerType(Interface, Object, f.return_type),
+        .return_type = Blk: {
+            const ReturnType = interfaceTypeToImplementerType(Interface, Object, f.return_type);
+            isValidReturnType(ReturnType) catch |err| {
+                @compileError("Interface function has an invalid return type: " ++ @errorName(err));
+            };
+            break :Blk ReturnType;
+        },
     };
 }
