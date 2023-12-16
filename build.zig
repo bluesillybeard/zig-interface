@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) void {
     // zig-interface is intended to be used as a module like this
 
     const interface = b.addModule("interface", .{
-        .source_file = .{.path = "src/interface.zig"}
+        .source_file = .{ .path = "src/interface.zig" },
     });
 
     const lib_unit_tests = b.addTest(.{

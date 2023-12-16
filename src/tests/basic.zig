@@ -4,45 +4,45 @@ const interface = @import("interface");
 
 // First, you need a function that returns a type
 // VtableType is simply to give more useful info - it will rarely be needed
-fn makeBase(comptime BaseType: type) type {
+fn MakeBase(comptime BaseType: type) type {
     // Note that this function is actually called twice.
     // Once with a dummy type to be able to get the declarations, and again with the real thing.
-    return struct{
-    
-    // If the first argument is a BaseType, then it is an instance function and a vtable entry will be generated
-    // The function is inline because that reduces calling overhead.
-    pub inline fn dynamicFunction(self: BaseType, argument: i32) void {
-        // This is required because zig cannot create functions at compile time.
-        // If it was possible, this boilerplate would be generated as well.
-        self.vtable.dynamicFunction(self.object, argument);
-    }
-    // If the first argument is not BaseType, then it will still be forwarded, but a vtable entry will not be generated
-    pub fn staticFunction(argument: i32) i32 {
-        return argument+1;
-    }
-    // If you want an instance function that isn't dynamically dispatched,
-    // the only way I could think to do that is by adding a prefix to the function name.
-    // However, in future versions of Zig a better solution may exist
-    // (Here is one such idea: https://github.com/ziglang/zig/issues/5132)
-    pub fn static_instanceFunction(self: BaseType, argument: i32) void {
-        // You can then call a dynamic function
-        self.dynamicFunction(argument * argument);
-    }
+    return struct {
 
-    pub inline fn otherDynamicFunction(self: BaseType) void {
-        self.dynamicFunction(10);
-        self.vtable.otherDynamicFunction(self.object);
-    }
-};
+        // If the first argument is a BaseType, then it is an instance function and a vtable entry will be generated
+        // The function is inline because that reduces calling overhead.
+        pub inline fn dynamicFunction(self: BaseType, argument: i32) void {
+            // This is required because zig cannot create functions at compile time.
+            // If it was possible, this boilerplate would be generated as well.
+            self.vtable.dynamicFunction(self.object, argument);
+        }
+        // If the first argument is not BaseType, then it will still be forwarded, but a vtable entry will not be generated
+        pub fn staticFunction(argument: i32) i32 {
+            return argument + 1;
+        }
+        // If you want an instance function that isn't dynamically dispatched,
+        // the only way I could think to do that is by adding a prefix to the function name.
+        // However, in future versions of Zig a better solution may exist
+        // (Here is one such idea: https://github.com/ziglang/zig/issues/5132)
+        pub fn static_instanceFunction(self: BaseType, argument: i32) void {
+            // You can then call a dynamic function
+            self.dynamicFunction(argument * argument);
+        }
+
+        pub inline fn otherDynamicFunction(self: BaseType) void {
+            self.dynamicFunction(10);
+            self.vtable.otherDynamicFunction(self.object);
+        }
+    };
 }
 // makeInterface creates an interface type that can be used to create implementations
-pub const Base = interface.makeInterface(makeBase, .{});
+pub const Base = interface.MakeInterface(MakeBase, .{});
 
 // You don't actually need to do anything with the sub type - as long as it has all the required functions.
 pub const Sub = struct {
     value: i32,
 
-    // The call convention of this function must match that of the base one, 
+    // The call convention of this function must match that of the base one,
     // With the exception of when the base function is inline; in that case the call convention must be default,
     // since getting the pointer of an inline function is not allowed.
     pub fn dynamicFunction(self: *Sub, argument: i32) void {
@@ -59,7 +59,7 @@ test "basic interface" {
     var object = Sub{
         .value = 0,
     };
-    
+
     // call the function directly - does not go through any indirection (for calling the function itself)
     object.dynamicFunction(100);
 
@@ -78,7 +78,7 @@ test "basic interface" {
     // If you're feeling naughty, you can also do this:
     baseObject.vtable.dynamicFunction(baseObject.object, 20);
     try testing.expectEqual(@as(i32, 170), object.value);
-    
+
     // Don't forget the static functions!
     const int = Base.staticFunction(20);
     baseObject.static_instanceFunction(int);
