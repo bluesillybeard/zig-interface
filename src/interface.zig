@@ -147,6 +147,12 @@ fn areTypesBitCompatible(comptime vt: type, comptime impl: type) bool {
                 return if (svt.layout != simpl.layout) false else @sizeOf(vt) == @sizeOf(impl);
             } else return false;
         },
+        .Pointer => {
+            // If they are both pointers, that is allowed.
+            // TODO: only allow if the vtable argument is a pointer to an opaque type
+            if(@typeInfo(impl) == .Pointer) return true;
+            return false;
+        },
         else => return false,
     }
 }
