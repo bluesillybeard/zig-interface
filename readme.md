@@ -1,5 +1,14 @@
 # zig-interface - an extremely simple and easy to use interface library for Zig.
 
+## Quick notes before we get started
+
+this library barely exists and is severely lacking of features
+
+ZLS does not work on interfaces (it basically gives up understanding the insanity of how this library works under the hood)
+
+I don't think the Zig language is ready for a zero-boilerplate interface library like this. It requires too many hacks to get it to work. Because of that (and because ZLS can't make heads or tails of it), I have stopped using this library and went back to writing the boilerplate manually.
+
+I'll still accept pull requests into this project, and if you can find a way to do it with fewer hacks (and most importantly, get ZLS to work nicely), I'll reconsider and possibly start developing and using this again.
 
 ## How does one make an automatic interface in Zig?
 
